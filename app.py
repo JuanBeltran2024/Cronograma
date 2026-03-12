@@ -3,31 +3,31 @@ import datetime
 from tkinter import messagebox
 from tkcalendar import Calendar
 import colorsys
+from PIL import Image
 from database import init_db, add_task, get_all_tasks, get_tasks_by_date_range, update_task_status, delete_task, add_session, get_sessions_by_date_range, delete_session, add_class, get_all_classes, delete_class
 
 # Initialize CustomTkinter settings for a modern flat UI
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
-# Theme settings
-BG_COLOR = "#0F172A"      # Slate 900
-SURFACE_COLOR = "#1E293B" # Slate 800
-SURFACE_LIGHT = "#334155" # Slate 700
-ACCENT_GREEN = "#10B981"  # Emerald 500
-ACCENT_RED = "#EF4444"    # Red 500
-ACCENT_ORANGE = "#F59E0B" # Amber 500
-ACCENT_BLUE = "#3B82F6"   # Blue 500
-TEXT_MAIN = "#F8FAFC"     # Slate 50
-TEXT_MUTED = "#94A3B8"    # Slate 400
+# === STITCH THEME PALETTE ===
+BG_COLOR      = "#1a2a3a"  # Deep ocean navy
+SURFACE_COLOR = "#243650"  # Stitch blue-dark
+SURFACE_LIGHT = "#4d82bc"  # Mid blue (palette #1)
+ACCENT_BLUE   = "#84b6f4"  # Sky blue  (palette #2)
+ACCENT_SOFT   = "#c4dafa"  # Pale blue (palette #3)
+ACCENT_PINK   = "#f3c2ca"  # Warm pink (palette #4)
+ACCENT_LILAC  = "#f5d7ef"  # Soft lilac (palette #5)
+ACCENT_GREEN  = "#84b6f4"  # Reuse sky-blue for 'success/low priority'
+ACCENT_RED    = "#f3c2ca"  # Pink for 'danger/urgent'
+ACCENT_ORANGE = "#c4dafa"  # Pale blue for 'medium priority'
+TEXT_MAIN     = "#f5d7ef"  # Lilac-white for main text
+TEXT_MUTED    = "#84b6f4"  # Sky blue for muted text
 
 def get_color_from_id(task_id):
-    # Generates a pseudo-random beautiful color based on the task_id
-    golden_ratio_conjugate = 0.618033988749895
-    h = (task_id * golden_ratio_conjugate) % 1.0
-    s = 0.65
-    v = 0.55 if ctk.get_appearance_mode() == "Dark" else 0.8
-    r, g, b = colorsys.hsv_to_rgb(h, s, v)
-    return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
+    # Generates a pastel Stitch-palette-inspired color based on task_id
+    stitch_colors = ["#4d82bc", "#84b6f4", "#c4dafa", "#f3c2ca", "#f5d7ef", "#6b9fd4", "#a8c8f8", "#d4e8fc"]
+    return stitch_colors[task_id % len(stitch_colors)]
 
 class CalendarModal(ctk.CTkToplevel):
     def __init__(self, parent, entry_widget):
@@ -39,11 +39,14 @@ class CalendarModal(ctk.CTkToplevel):
         
         self.cal = Calendar(self, selectmode='day', date_pattern='y-mm-dd',
                             background=SURFACE_COLOR, foreground=TEXT_MAIN,
-                            headersbackground=BG_COLOR, headersforeground=TEXT_MUTED)
+                            headersbackground=SURFACE_LIGHT, headersforeground=TEXT_MAIN,
+                            selectbackground=ACCENT_PINK, selectforeground=BG_COLOR,
+                            weekendforeground=ACCENT_PINK, normalforeground=TEXT_MAIN)
         self.cal.pack(pady=15, padx=15, fill="both", expand=True)
         
-        self.btn = ctk.CTkButton(self, text="Aceptar", command=self.set_date, 
-                                 fg_color=ACCENT_GREEN, hover_color="#059669")
+        self.btn = ctk.CTkButton(self, text="Aceptar 🐾", command=self.set_date, 
+                                 fg_color=SURFACE_LIGHT, hover_color=ACCENT_BLUE,
+                                 text_color=TEXT_MAIN, font=ctk.CTkFont(size=13, weight="bold"))
         self.btn.pack(pady=10)
         
         self.transient(parent)
@@ -60,36 +63,43 @@ class AddTaskWindow(ctk.CTkToplevel):
     def __init__(self, parent, refresh_callback):
         super().__init__(parent)
         self.title("Añadir Nueva Tarea")
-        self.geometry("450x420")
+        self.geometry("450x440")
         self.configure(fg_color=BG_COLOR)
         self.refresh_callback = refresh_callback
         
         self.transient(parent)
         self.grab_set()
 
-        self.label = ctk.CTkLabel(self, text="Crear Nueva Tarea", font=ctk.CTkFont(size=24, weight="bold"), text_color=TEXT_MAIN)
-        self.label.pack(pady=(25, 15))
+        ctk.CTkLabel(self, text="🐾 Nueva Tarea", font=ctk.CTkFont(size=26, weight="bold"), text_color=ACCENT_SOFT).pack(pady=(25, 5))
+        ctk.CTkLabel(self, text="Ohana significa familia 💙", font=ctk.CTkFont(size=12, slant="italic"), text_color=TEXT_MUTED).pack(pady=(0, 15))
 
-        self.title_entry = ctk.CTkEntry(self, placeholder_text="Título de la tarea...", width=340, height=40, font=ctk.CTkFont(size=14))
-        self.title_entry.pack(pady=10)
+        self.title_entry = ctk.CTkEntry(self, placeholder_text="Título de la tarea...", width=340, height=42,
+                                        font=ctk.CTkFont(size=14), border_color=SURFACE_LIGHT,
+                                        fg_color=SURFACE_COLOR, text_color=TEXT_MAIN)
+        self.title_entry.pack(pady=8)
 
-        self.desc_entry = ctk.CTkTextbox(self, width=340, height=100, font=ctk.CTkFont(size=13))
+        self.desc_entry = ctk.CTkTextbox(self, width=340, height=90, font=ctk.CTkFont(size=13),
+                                          fg_color=SURFACE_COLOR, border_color=SURFACE_LIGHT, text_color=TEXT_MUTED)
         self.desc_entry.insert("0.0", "Añade una descripción aquí (opcional)")
-        self.desc_entry.pack(pady=10)
+        self.desc_entry.pack(pady=8)
 
-        # Date Frame
         self.date_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.date_frame.pack(pady=15)
+        self.date_frame.pack(pady=12)
         
-        self.date_entry = ctk.CTkEntry(self.date_frame, placeholder_text="Seleccione Fecha Límite", width=280, height=40, state="readonly", font=ctk.CTkFont(size=14))
+        self.date_entry = ctk.CTkEntry(self.date_frame, placeholder_text="Seleccione Fecha Límite", width=270, height=40,
+                                        state="readonly", font=ctk.CTkFont(size=14),
+                                        fg_color=SURFACE_COLOR, border_color=SURFACE_LIGHT, text_color=TEXT_MAIN)
         self.date_entry.grid(row=0, column=0, padx=(0,10))
         
-        self.cal_btn = ctk.CTkButton(self.date_frame, text="📅", width=50, height=40, command=self.open_calendar, fg_color=SURFACE_COLOR, hover_color=SURFACE_LIGHT)
+        self.cal_btn = ctk.CTkButton(self.date_frame, text="📅", width=50, height=40,
+                                     command=self.open_calendar, fg_color=SURFACE_LIGHT, hover_color=ACCENT_BLUE)
         self.cal_btn.grid(row=0, column=1)
 
-        self.save_btn = ctk.CTkButton(self, text="Guardar Tarea", height=45, width=200, command=self.save_task, 
-                                      fg_color=ACCENT_GREEN, hover_color="#059669", font=ctk.CTkFont(size=16, weight="bold"))
-        self.save_btn.pack(pady=25)
+        self.save_btn = ctk.CTkButton(self, text="✨ Guardar Tarea", height=46, width=220, command=self.save_task,
+                                      fg_color=SURFACE_LIGHT, hover_color=ACCENT_BLUE,
+                                      text_color=TEXT_MAIN, font=ctk.CTkFont(size=16, weight="bold"),
+                                      border_width=2, border_color=ACCENT_BLUE)
+        self.save_btn.pack(pady=22)
 
     def open_calendar(self):
         CalendarModal(self, self.date_entry)
@@ -113,7 +123,7 @@ class AddSessionWindow(ctk.CTkToplevel):
     def __init__(self, parent, target_date_str, refresh_callback):
         super().__init__(parent)
         self.title(f"Agendar Bloque de Tiempo - {target_date_str}")
-        self.geometry("450x380")
+        self.geometry("450x400")
         self.configure(fg_color=BG_COLOR)
         self.refresh_callback = refresh_callback
         self.target_date_str = target_date_str
@@ -121,8 +131,8 @@ class AddSessionWindow(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
 
-        self.label = ctk.CTkLabel(self, text="Agendar en " + target_date_str, font=ctk.CTkFont(size=20, weight="bold"), text_color=TEXT_MAIN)
-        self.label.pack(pady=(20, 15))
+        ctk.CTkLabel(self, text="🕛 Agendar Estudio", font=ctk.CTkFont(size=22, weight="bold"), text_color=ACCENT_SOFT).pack(pady=(20, 3))
+        ctk.CTkLabel(self, text=f"📅 {target_date_str}", font=ctk.CTkFont(size=13), text_color=TEXT_MUTED).pack(pady=(0, 12))
 
         # Fetch Tasks
         self.tasks = get_all_tasks()
@@ -135,29 +145,35 @@ class AddSessionWindow(ctk.CTkToplevel):
 
         self.task_choices = {f"{t['id']} - {t['title']} (Vence: {t['due_date']})": t['id'] for t in self.pending_tasks}
         
-        self.task_combo = ctk.CTkComboBox(self, values=list(self.task_choices.keys()), width=340, height=40, font=ctk.CTkFont(size=14))
-        self.task_combo.pack(pady=10)
+        self.task_combo = ctk.CTkComboBox(self, values=list(self.task_choices.keys()), width=340, height=40,
+                                           font=ctk.CTkFont(size=13), fg_color=SURFACE_COLOR,
+                                           border_color=SURFACE_LIGHT, button_color=SURFACE_LIGHT,
+                                           text_color=TEXT_MAIN)
+        self.task_combo.pack(pady=8)
 
-        # Time Selection
         time_frame = ctk.CTkFrame(self, fg_color="transparent")
-        time_frame.pack(pady=15)
+        time_frame.pack(pady=12)
 
         hours = [f"{h:02d}:00" for h in range(6, 24)] + [f"{h:02d}:30" for h in range(6, 23)]
         hours.sort()
 
-        ctk.CTkLabel(time_frame, text="Inicio:").grid(row=0, column=0, padx=5)
-        self.start_combo = ctk.CTkComboBox(time_frame, values=hours, width=100)
+        ctk.CTkLabel(time_frame, text="Inicio:", text_color=TEXT_MUTED).grid(row=0, column=0, padx=5)
+        self.start_combo = ctk.CTkComboBox(time_frame, values=hours, width=100, fg_color=SURFACE_COLOR,
+                                            border_color=SURFACE_LIGHT, button_color=SURFACE_LIGHT, text_color=TEXT_MAIN)
         self.start_combo.set("08:00")
         self.start_combo.grid(row=0, column=1, padx=(0, 20))
 
-        ctk.CTkLabel(time_frame, text="Fin:").grid(row=0, column=2, padx=5)
-        self.end_combo = ctk.CTkComboBox(time_frame, values=hours, width=100)
+        ctk.CTkLabel(time_frame, text="Fin:", text_color=TEXT_MUTED).grid(row=0, column=2, padx=5)
+        self.end_combo = ctk.CTkComboBox(time_frame, values=hours, width=100, fg_color=SURFACE_COLOR,
+                                          border_color=SURFACE_LIGHT, button_color=SURFACE_LIGHT, text_color=TEXT_MAIN)
         self.end_combo.set("09:00")
         self.end_combo.grid(row=0, column=3)
 
-        self.save_btn = ctk.CTkButton(self, text="Guardar Bloque", height=45, command=self.save_session, 
-                                      fg_color=ACCENT_BLUE, hover_color="#2563EB", font=ctk.CTkFont(size=16, weight="bold"))
-        self.save_btn.pack(pady=30)
+        self.save_btn = ctk.CTkButton(self, text="💙 Guardar Bloque", height=46, command=self.save_session,
+                                      fg_color=SURFACE_LIGHT, hover_color=ACCENT_BLUE,
+                                      text_color=TEXT_MAIN, font=ctk.CTkFont(size=16, weight="bold"),
+                                      border_width=2, border_color=ACCENT_BLUE)
+        self.save_btn.pack(pady=28)
 
     def save_session(self):
         task_str = self.task_combo.get()
@@ -206,51 +222,57 @@ class AddClassWindow(ctk.CTkToplevel):
     def __init__(self, parent, refresh_callback):
         super().__init__(parent)
         self.title("Añadir Horario de Clase")
-        self.geometry("450x420")
+        self.geometry("450x440")
         self.configure(fg_color=BG_COLOR)
         self.refresh_callback = refresh_callback
         
         self.transient(parent)
         self.grab_set()
 
-        self.label = ctk.CTkLabel(self, text="Nueva Clase Universitaria", font=ctk.CTkFont(size=20, weight="bold"), text_color=TEXT_MAIN)
-        self.label.pack(pady=(20, 15))
+        ctk.CTkLabel(self, text="🎓 Nueva Clase", font=ctk.CTkFont(size=24, weight="bold"), text_color=ACCENT_LILAC).pack(pady=(20, 3))
+        ctk.CTkLabel(self, text="Agrega tu horario universitario", font=ctk.CTkFont(size=12, slant="italic"), text_color=TEXT_MUTED).pack(pady=(0, 12))
 
-        self.name_entry = ctk.CTkEntry(self, placeholder_text="Nombre de la asignatura...", width=340, height=40, font=ctk.CTkFont(size=14))
-        self.name_entry.pack(pady=10)
+        self.name_entry = ctk.CTkEntry(self, placeholder_text="Nombre de la asignatura...", width=340, height=42,
+                                        font=ctk.CTkFont(size=14), border_color=SURFACE_LIGHT,
+                                        fg_color=SURFACE_COLOR, text_color=TEXT_MAIN)
+        self.name_entry.pack(pady=8)
 
         self.days = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
         
-        self.days_frame = ctk.CTkFrame(self, fg_color="transparent")
-        self.days_frame.pack(pady=5)
+        self.days_frame = ctk.CTkFrame(self, fg_color=SURFACE_COLOR, corner_radius=10)
+        self.days_frame.pack(pady=8, padx=20, fill="x")
         
         self.day_vars = []
         for i, day in enumerate(self.days):
             var = ctk.BooleanVar(value=False)
             self.day_vars.append((day, var))
-            cb = ctk.CTkCheckBox(self.days_frame, text=day[:3], variable=var, width=50)
-            cb.grid(row=0, column=i, padx=2)
+            cb = ctk.CTkCheckBox(self.days_frame, text=day[:3], variable=var, width=50,
+                                  checkmark_color=BG_COLOR, fg_color=ACCENT_BLUE,
+                                  hover_color=SURFACE_LIGHT, text_color=TEXT_MAIN)
+            cb.grid(row=0, column=i, padx=4, pady=8)
 
-        # Time Selection
         time_frame = ctk.CTkFrame(self, fg_color="transparent")
-        time_frame.pack(pady=15)
+        time_frame.pack(pady=12)
 
         hours = [f"{h:02d}:00" for h in range(6, 24)] + [f"{h:02d}:30" for h in range(6, 23)]
         hours.sort()
 
-        ctk.CTkLabel(time_frame, text="Inicio:").grid(row=0, column=0, padx=5)
-        self.start_combo = ctk.CTkComboBox(time_frame, values=hours, width=100)
+        ctk.CTkLabel(time_frame, text="Inicio:", text_color=TEXT_MUTED).grid(row=0, column=0, padx=5)
+        self.start_combo = ctk.CTkComboBox(time_frame, values=hours, width=100, fg_color=SURFACE_COLOR,
+                                            border_color=SURFACE_LIGHT, button_color=SURFACE_LIGHT, text_color=TEXT_MAIN)
         self.start_combo.set("08:00")
         self.start_combo.grid(row=0, column=1, padx=(0, 20))
 
-        ctk.CTkLabel(time_frame, text="Fin:").grid(row=0, column=2, padx=5)
-        self.end_combo = ctk.CTkComboBox(time_frame, values=hours, width=100)
+        ctk.CTkLabel(time_frame, text="Fin:", text_color=TEXT_MUTED).grid(row=0, column=2, padx=5)
+        self.end_combo = ctk.CTkComboBox(time_frame, values=hours, width=100, fg_color=SURFACE_COLOR,
+                                          border_color=SURFACE_LIGHT, button_color=SURFACE_LIGHT, text_color=TEXT_MAIN)
         self.end_combo.set("10:00")
         self.end_combo.grid(row=0, column=3)
 
-        self.save_btn = ctk.CTkButton(self, text="Guardar Clase", height=45, command=self.save_class, 
-                                      fg_color="#8B5CF6", hover_color="#7C3AED", font=ctk.CTkFont(size=16, weight="bold")) # Purple color
-        self.save_btn.pack(pady=30)
+        self.save_btn = ctk.CTkButton(self, text="🌟 Guardar Clase", height=46, command=self.save_class,
+                                      fg_color=ACCENT_SOFT, hover_color=ACCENT_BLUE,
+                                      text_color=BG_COLOR, font=ctk.CTkFont(size=16, weight="bold"))
+        self.save_btn.pack(pady=25)
 
     def save_class(self):
         name = self.name_entry.get().strip()
@@ -308,25 +330,25 @@ class TaskItemFrame(ctk.CTkFrame):
         diff_days = (task_date - today).days
 
         if task['status'] == 'completed':
-            priority = "Completada"
+            priority = "Completada ✅"
             p_color = TEXT_MUTED
             border_col = SURFACE_COLOR
         elif diff_days < 0:
-            priority = "Atrasada!"
-            p_color = ACCENT_RED
-            border_col = ACCENT_RED
+            priority = "🚨 Atrasada!"
+            p_color = ACCENT_PINK
+            border_col = ACCENT_PINK
         elif diff_days <= 3:
-            priority = "¡Urgente! Alta Prioridad"
-            p_color = ACCENT_RED
-            border_col = ACCENT_RED
+            priority = "⚠️ ¡Urgente!"
+            p_color = ACCENT_PINK
+            border_col = ACCENT_PINK
         elif diff_days <= 7:
-            priority = "Media Prioridad"
-            p_color = ACCENT_ORANGE
-            border_col = ACCENT_ORANGE
+            priority = "🔵 Media Prioridad"
+            p_color = ACCENT_SOFT
+            border_col = ACCENT_SOFT
         else:
-            priority = "Baja Prioridad"
-            p_color = ACCENT_GREEN
-            border_col = ACCENT_GREEN
+            priority = "🟢 Baja Prioridad"
+            p_color = ACCENT_BLUE
+            border_col = ACCENT_BLUE
 
         if task['status'] == 'pending':
             self.configure(border_width=2, border_color=border_col)
@@ -334,17 +356,19 @@ class TaskItemFrame(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
 
         title_font = ctk.CTkFont(size=16, weight="bold")
-        status_icon = "✔️" if task['status'] == 'completed' else "⏳"
+        status_icon = "✅" if task['status'] == 'completed' else "🐾"
         
         self.header_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.header_frame.grid(row=0, column=0, padx=15, pady=(15, 5), sticky="ew")
         self.header_frame.grid_columnconfigure(0, weight=1)
 
         title_str = f"{status_icon} {task['title']}"
-        self.title_label = ctk.CTkLabel(self.header_frame, text=title_str, font=title_font, text_color=TEXT_MAIN if task['status'] == 'pending' else TEXT_MUTED)
+        self.title_label = ctk.CTkLabel(self.header_frame, text=title_str, font=title_font,
+                                         text_color=TEXT_MAIN if task['status'] == 'pending' else TEXT_MUTED)
         self.title_label.grid(row=0, column=0, sticky="w")
         
-        self.prio_label = ctk.CTkLabel(self.header_frame, text=priority, font=ctk.CTkFont(size=12, weight="bold"), text_color=p_color)
+        self.prio_label = ctk.CTkLabel(self.header_frame, text=priority, font=ctk.CTkFont(size=12, weight="bold"),
+                                        text_color=p_color)
         self.prio_label.grid(row=0, column=1, sticky="e")
 
         date_str = f"📅 Fecha Límite: {task['due_date']} ({diff_days} días)" if task['status'] == 'pending' else f"📅 Fecha: {task['due_date']}"
@@ -359,10 +383,17 @@ class TaskItemFrame(ctk.CTkFrame):
         self.btn_frame.grid(row=0, column=1, rowspan=3, padx=15, pady=15, sticky="e")
 
         if task['status'] == 'pending':
-            self.complete_btn = ctk.CTkButton(self.btn_frame, text="Finalizar", width=80, height=30, fg_color=ACCENT_GREEN, hover_color="#059669", font=ctk.CTkFont(weight="bold"), command=self.mark_completed)
-            self.complete_btn.grid(row=0, column=0, padx=(0, 10))
+            self.complete_btn = ctk.CTkButton(self.btn_frame, text="Finalizar ✨", width=90, height=32,
+                                              fg_color=SURFACE_LIGHT, hover_color=ACCENT_BLUE,
+                                              text_color=TEXT_MAIN, font=ctk.CTkFont(weight="bold"),
+                                              command=self.mark_completed, corner_radius=8)
+            self.complete_btn.grid(row=0, column=0, padx=(0, 8))
         
-        self.delete_btn = ctk.CTkButton(self.btn_frame, text="Borrar", width=80, height=30, fg_color=ACCENT_RED, hover_color="#B91C1C", font=ctk.CTkFont(weight="bold"), command=self.delete_this_task)
+        self.delete_btn = ctk.CTkButton(self.btn_frame, text="Borrar", width=80, height=32,
+                                         fg_color="transparent", hover_color=SURFACE_LIGHT,
+                                         text_color=ACCENT_PINK, font=ctk.CTkFont(weight="bold"),
+                                         command=self.delete_this_task, border_width=1,
+                                         border_color=ACCENT_PINK, corner_radius=8)
         self.delete_btn.grid(row=0, column=1)
 
     def mark_completed(self):
@@ -378,7 +409,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MyUniTasks - Organizador")
+        self.title("MyUniTasks 🐾 - Organizador")
         self.geometry("1100x750")
         self.configure(fg_color=BG_COLOR)
 
@@ -409,29 +440,61 @@ class App(ctk.CTk):
         self.sidebar_frame.grid(row=0, column=0, sticky="nsew")
         self.sidebar_frame.grid_rowconfigure(6, weight=1)
 
-        self.logo_label = ctk.CTkLabel(self.sidebar_frame, text="📌 MyUniTasks", font=ctk.CTkFont(size=26, weight="bold"), text_color=TEXT_MAIN)
-        self.logo_label.grid(row=0, column=0, padx=20, pady=(30, 20))
+        # Stitch Logo
+        logo_frame = ctk.CTkFrame(self.sidebar_frame, fg_color=BG_COLOR, corner_radius=16)
+        logo_frame.grid(row=0, column=0, padx=15, pady=(25, 15), sticky="ew")
+        
+        # Try loading the Stitch image
+        try:
+            import os
+            img_path = os.path.join(os.path.dirname(__file__), "stitch_logo.png")
+            pil_img = Image.open(img_path).resize((140, 100), Image.LANCZOS)
+            ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(140, 100))
+            img_label = ctk.CTkLabel(logo_frame, image=ctk_img, text="", fg_color="transparent")
+            img_label.pack(pady=(10, 0))
+        except Exception:
+            ctk.CTkLabel(logo_frame, text="🐾", font=ctk.CTkFont(size=38)).pack(pady=(12, 0))
+        
+        ctk.CTkLabel(logo_frame, text="MyUniTasks", font=ctk.CTkFont(size=18, weight="bold"), text_color=ACCENT_SOFT).pack(pady=(2, 4))
+        ctk.CTkLabel(logo_frame, text="Ohana significa familia", font=ctk.CTkFont(size=10, slant="italic"), text_color=TEXT_MUTED).pack(pady=(0, 12))
 
         btn_font = ctk.CTkFont(size=14, weight="bold")
-        btn_kwargs = {"fg_color": "transparent", "text_color": TEXT_MUTED, "hover_color": SURFACE_LIGHT, "anchor": "w", "font": btn_font, "height": 40}
+        btn_kwargs = {"fg_color": "transparent", "text_color": TEXT_MUTED, "hover_color": BG_COLOR,
+                      "anchor": "w", "font": btn_font, "height": 44, "corner_radius": 10}
 
-        self.all_tasks_btn = ctk.CTkButton(self.sidebar_frame, text="📋 Tablero de Tareas", command=lambda: self.switch_view("all"), **btn_kwargs)
-        self.all_tasks_btn.grid(row=1, column=0, padx=20, pady=5, sticky="ew")
+        self.all_tasks_btn = ctk.CTkButton(self.sidebar_frame, text="📋 Tablero de Tareas",
+                                           command=lambda: self.switch_view("all"), **btn_kwargs)
+        self.all_tasks_btn.grid(row=1, column=0, padx=15, pady=5, sticky="ew")
 
-        self.calendar_btn = ctk.CTkButton(self.sidebar_frame, text="🗓️ Calendario (7 Días)", command=lambda: self.switch_view("calendar"), **btn_kwargs)
-        self.calendar_btn.grid(row=2, column=0, padx=20, pady=5, sticky="ew")
+        self.calendar_btn = ctk.CTkButton(self.sidebar_frame, text="🗓️ Calendario (7 Días)",
+                                          command=lambda: self.switch_view("calendar"), **btn_kwargs)
+        self.calendar_btn.grid(row=2, column=0, padx=15, pady=5, sticky="ew")
 
-        self.add_task_btn = ctk.CTkButton(self.sidebar_frame, text="+ Nueva Tarea", command=self.open_add_task_window, 
-                                          fg_color=ACCENT_GREEN, hover_color="#059669", font=ctk.CTkFont(size=15, weight="bold"), height=45)
-        self.add_task_btn.grid(row=4, column=0, padx=20, pady=(40, 5), sticky="ew")
+        # Separator
+        sep = ctk.CTkFrame(self.sidebar_frame, height=2, fg_color=BG_COLOR)
+        sep.grid(row=3, column=0, padx=20, pady=15, sticky="ew")
+
+        self.add_task_btn = ctk.CTkButton(self.sidebar_frame, text="✨ Nueva Tarea",
+                                          command=self.open_add_task_window,
+                                          fg_color=SURFACE_LIGHT, hover_color=ACCENT_BLUE,
+                                          text_color=TEXT_MAIN,
+                                          font=ctk.CTkFont(size=14, weight="bold"), height=45,
+                                          corner_radius=12, border_width=2, border_color=ACCENT_BLUE)
+        self.add_task_btn.grid(row=4, column=0, padx=15, pady=5, sticky="ew")
         
-        self.add_class_btn = ctk.CTkButton(self.sidebar_frame, text="+ Añadir Clase", command=self.open_add_class_window, 
-                                          fg_color="#8B5CF6", hover_color="#7C3AED", font=ctk.CTkFont(size=15, weight="bold"), height=45)
-        self.add_class_btn.grid(row=5, column=0, padx=20, pady=5, sticky="ew")
+        self.add_class_btn = ctk.CTkButton(self.sidebar_frame, text="🎓 Añadir Clase",
+                                           command=self.open_add_class_window,
+                                           fg_color=ACCENT_SOFT, hover_color=ACCENT_BLUE,
+                                           text_color=BG_COLOR,
+                                           font=ctk.CTkFont(size=14, weight="bold"), height=45,
+                                           corner_radius=12)
+        self.add_class_btn.grid(row=5, column=0, padx=15, pady=5, sticky="ew")
 
-        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(self.sidebar_frame, values=["Dark", "Light"],
-                                                                       command=self.change_appearance_mode_event,
-                                                                       fg_color=BG_COLOR, button_color=BG_COLOR)
+        self.appearance_mode_optionemenu = ctk.CTkOptionMenu(
+            self.sidebar_frame, values=["Dark", "Light"],
+            command=self.change_appearance_mode_event,
+            fg_color=BG_COLOR, button_color=SURFACE_LIGHT, button_hover_color=ACCENT_BLUE,
+            text_color=TEXT_MUTED)
         self.appearance_mode_optionemenu.grid(row=7, column=0, padx=20, pady=(10, 20), sticky="s")
 
     def change_appearance_mode_event(self, new_appearance_mode: str):
@@ -439,20 +502,20 @@ class App(ctk.CTk):
 
     def switch_view(self, view_name):
         self.current_view = view_name
-        self.all_tasks_btn.configure(text_color=TEXT_MUTED)
-        self.calendar_btn.configure(text_color=TEXT_MUTED)
+        self.all_tasks_btn.configure(text_color=TEXT_MUTED, fg_color="transparent")
+        self.calendar_btn.configure(text_color=TEXT_MUTED, fg_color="transparent")
 
         # Hide all cached views first without destroying them
         for frame in self.cached_views.values():
             frame.grid_remove()
 
         if view_name == "all":
-            self.view_title.configure(text="Tablero General")
-            self.all_tasks_btn.configure(text_color=TEXT_MAIN)
+            self.view_title.configure(text="📌 Tablero General")
+            self.all_tasks_btn.configure(text_color=ACCENT_SOFT, fg_color=BG_COLOR)
             self.load_list_view()
         elif view_name == "calendar":
-            self.view_title.configure(text="Mi Agenda para la Semana")
-            self.calendar_btn.configure(text_color=TEXT_MAIN)
+            self.view_title.configure(text="🗓️ Mi Agenda para la Semana")
+            self.calendar_btn.configure(text_color=ACCENT_SOFT, fg_color=BG_COLOR)
             self.load_calendar_view()
 
     def refresh_current_view(self):
@@ -509,17 +572,13 @@ class App(ctk.CTk):
         all_classes = get_all_classes()
 
         # 1. TOP STICKY HEADER
-        # This will hold the day labels and "add" buttons
         header_frame = ctk.CTkFrame(view_content, fg_color="transparent")
-        # Added right padding of 20 to account for the CustomTkinter scrollbar in the list below.
-        # This prevents the headers from shifting right relative to the body content.
-        header_frame.pack(fill="x", pady=(0, 10), padx=(0, 20))
+        header_frame.pack(fill="x", pady=(0, 6), padx=(0, 20))
         
-        # Spacer on the left for the timeline text (Width 45 + 5 left padx = 50px total)
+        # Spacer on the left for the timeline text
         ctk.CTkFrame(header_frame, width=45, height=0, fg_color="transparent").pack(side="left", padx=(5, 0))
 
         # 2. BODY SCROLLABLE FRAME
-        # A single vertical scrolling canvas for perfect sync
         scroll_body = ctk.CTkScrollableFrame(view_content, fg_color="transparent", orientation="vertical")
         scroll_body.pack(fill="both", expand=True)
 
@@ -530,7 +589,7 @@ class App(ctk.CTk):
         START = 6
         TOTAL = 18
         
-        # Timeline Sidebar (Inside the single body)
+        # Timeline Sidebar
         timeline_bar = ctk.CTkFrame(grid_frame, fg_color="transparent", width=45, height=TOTAL*PIXELS)
         timeline_bar.pack(side="left", fill="y", pady=0, padx=(5, 0))
         timeline_bar.pack_propagate(False)
@@ -539,14 +598,14 @@ class App(ctk.CTk):
             y_pos = hour * PIXELS
             real_h = START + hour
             if real_h <= 23:
-                lbl = ctk.CTkLabel(timeline_bar, text=f"{real_h:02d}:00", font=ctk.CTkFont(size=12, weight="bold"), text_color=TEXT_MUTED)
+                lbl = ctk.CTkLabel(timeline_bar, text=f"{real_h:02d}:00",
+                                   font=ctk.CTkFont(size=11, weight="bold"), text_color=TEXT_MUTED)
                 lbl.place(x=0, y=y_pos - 10)
 
         week_day_names = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
         # Background Master Canvas for Everything (Grid, Classes, Sessions)
-        # This brings a colossal performance improvement by avoiding thousands of widget instantiations
-        self.bg_canvas = ctk.CTkCanvas(grid_frame, bg=SURFACE_COLOR, highlightthickness=0)
+        self.bg_canvas = ctk.CTkCanvas(grid_frame, bg=BG_COLOR, highlightthickness=0)
         self.bg_canvas.pack(side="left", fill="both", expand=True, padx=5)
         
         # Bind the configure event to redraw lines when resized
@@ -558,13 +617,13 @@ class App(ctk.CTk):
             # Horizontal lines
             for hour in range(TOTAL + 1):
                 y_pos = hour * PIXELS
-                self.bg_canvas.create_line(0, y_pos, width, y_pos, fill=SURFACE_LIGHT, tags="grid_line")
+                self.bg_canvas.create_line(0, y_pos, width, y_pos, fill=SURFACE_COLOR, tags="grid_line")
                 
-            # Vertical lines (7 columns means 6 inner lines)
+            # Vertical lines (6 inner dividers for 7 columns)
             col_width = width / 7
             for day in range(1, 7):
                 x_pos = day * col_width
-                self.bg_canvas.create_line(x_pos, 0, x_pos, height, fill=SURFACE_LIGHT, tags="grid_line")
+                self.bg_canvas.create_line(x_pos, 0, x_pos, height, fill=SURFACE_COLOR, tags="grid_line")
                 
         # We need to compute total items and their placement natively
         def draw_calendar_native(event=None):
@@ -680,16 +739,24 @@ class App(ctk.CTk):
             hdr_col.pack(side="left", fill="both", expand=True, padx=5)
             
             is_today = current_day == datetime.date.today()
-            h_color = ACCENT_BLUE if is_today else TEXT_MAIN
+            h_color = ACCENT_SOFT if is_today else TEXT_MAIN
+            hdr_bg = SURFACE_LIGHT if is_today else SURFACE_COLOR
+            
+            hdr_col = ctk.CTkFrame(header_frame, fg_color=hdr_bg, corner_radius=10, width=50, height=80)
+            hdr_col.pack_propagate(False)
+            hdr_col.pack(side="left", fill="both", expand=True, padx=5)
             
             header_text = f"{week_day_names[current_day.weekday()]} {current_day.day}"
             ctk.CTkLabel(hdr_col, text=header_text, font=ctk.CTkFont(size=14, weight="bold"), text_color=h_color).pack(pady=(8, 0))
-            ctk.CTkLabel(hdr_col, text=date_str, text_color=TEXT_MUTED, font=ctk.CTkFont(size=11)).pack(pady=(0, 2))
+            ctk.CTkLabel(hdr_col, text=date_str, text_color=TEXT_MUTED, font=ctk.CTkFont(size=10)).pack(pady=(0, 2))
             
             def create_callback(d):
                 return lambda: AddSessionWindow(self.winfo_toplevel(), d, self.refresh_current_view)
                 
-            btn = ctk.CTkButton(hdr_col, text="+ Agendar", width=90, height=24, fg_color=SURFACE_LIGHT, command=create_callback(date_str))
+            btn = ctk.CTkButton(hdr_col, text="+ Agendar", width=90, height=24,
+                                fg_color=BG_COLOR, hover_color=ACCENT_BLUE,
+                                text_color=ACCENT_SOFT, font=ctk.CTkFont(size=11, weight="bold"),
+                                command=create_callback(date_str), corner_radius=8)
             btn.pack(pady=4)
 
         # Add total height for scroll bar
