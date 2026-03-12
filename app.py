@@ -733,11 +733,6 @@ class App(ctk.CTk):
             current_day = today + datetime.timedelta(days=i)
             date_str = current_day.strftime("%Y-%m-%d")
             
-            # --- HEADER COMPONENT ---
-            hdr_col = ctk.CTkFrame(header_frame, fg_color=SURFACE_COLOR, corner_radius=8, width=50, height=85)
-            hdr_col.pack_propagate(False)
-            hdr_col.pack(side="left", fill="both", expand=True, padx=5)
-            
             is_today = current_day == datetime.date.today()
             h_color = ACCENT_SOFT if is_today else TEXT_MAIN
             hdr_bg = SURFACE_LIGHT if is_today else SURFACE_COLOR
