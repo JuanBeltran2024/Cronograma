@@ -295,10 +295,6 @@ class AddClassWindow(ctk.CTkToplevel):
         self.refresh_callback()
         self.destroy()
 
-        self.PIXELS_PER_HOUR = 85
-        self.START_HOUR = 6
-        self.TOTAL_HOURS = 18
-
 class TaskItemFrame(ctk.CTkFrame):
     def __init__(self, master, task, refresh_callback, **kwargs):
         super().__init__(master, **kwargs)
@@ -598,6 +594,25 @@ class App(ctk.CTk):
                                 self.refresh_current_view()
             
             self.bg_canvas.bind("<Button-1>", on_canvas_click)
+
+            # Click on empty space to add a session
+            def on_empty_click(e):
+                item_id = self.bg_canvas.find_withtag("current")
+                # Only trigger if there's nothing under the cursor
+                if not item_id or item_id[0] not in self.canvas_item_data:
+                    current_col_width = self.bg_canvas.winfo_width() / 7
+                    col_idx = int(e.x / current_col_width)
+                    col_idx = max(0, min(6, col_idx))
+                    clicked_day = today + datetime.timedelta(days=col_idx)
+                    date_str = clicked_day.strftime("%Y-%m-%d")
+                    # Compute approximate time from y position
+                    hour_float = START + (e.y / PIXELS)
+                    hour = int(hour_float)
+                    minute = 30 if (hour_float - hour) >= 0.5 else 0
+                    hour = max(START, min(23, hour))
+                    AddSessionWindow(self.winfo_toplevel(), date_str, self.refresh_current_view)
+            
+            self.bg_canvas.bind("<Button-1>", on_empty_click, add="+")
 
             # Helper to draw a block natively
             def draw_block(col_idx, y_start, y_end, title, bg_color, fg_color, item_type, db_id):
