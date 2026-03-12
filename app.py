@@ -4,7 +4,7 @@ from tkinter import messagebox
 from tkcalendar import Calendar
 import colorsys
 from PIL import Image
-from database import init_db, add_task, get_all_tasks, get_tasks_by_date_range, update_task_status, delete_task, add_session, get_sessions_by_date_range, delete_session, add_class, get_all_classes, delete_class
+from database import init_db, add_task, get_all_tasks, get_tasks_by_date_range, update_task_status, delete_task, add_session, get_sessions_by_date_range, delete_session, add_class, get_all_classes, delete_class, get_sessions_by_task
 
 # Initialize CustomTkinter settings for a modern flat UI
 ctk.set_appearance_mode("Dark")
@@ -95,6 +95,21 @@ class AddTaskWindow(ctk.CTkToplevel):
                                      command=self.open_calendar, fg_color=SURFACE_LIGHT, hover_color=ACCENT_BLUE)
         self.cal_btn.grid(row=0, column=1)
 
+        # Estimated hours row
+        hours_frame = ctk.CTkFrame(self, fg_color="transparent")
+        hours_frame.pack(pady=(4, 0))
+        ctk.CTkLabel(hours_frame, text="⏱️ Horas estimadas:", text_color=TEXT_MUTED,
+                     font=ctk.CTkFont(size=13)).pack(side="left", padx=(0, 10))
+        self.hours_var = ctk.StringVar(value="2")
+        self.hours_spin = ctk.CTkOptionMenu(hours_frame,
+                                             values=[str(h) + ("" if h != 0.5 else "") for h in
+                                                     [0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8, 10, 12, 15, 20]],
+                                             variable=self.hours_var, width=80,
+                                             fg_color=SURFACE_COLOR, button_color=SURFACE_LIGHT,
+                                             text_color=TEXT_MAIN)
+        self.hours_spin.pack(side="left")
+        ctk.CTkLabel(hours_frame, text="hrs", text_color=TEXT_MUTED, font=ctk.CTkFont(size=13)).pack(side="left", padx=(6, 0))
+
         self.save_btn = ctk.CTkButton(self, text="✨ Guardar Tarea", height=46, width=220, command=self.save_task,
                                       fg_color=SURFACE_LIGHT, hover_color=ACCENT_BLUE,
                                       text_color=TEXT_MAIN, font=ctk.CTkFont(size=16, weight="bold"),
@@ -115,7 +130,12 @@ class AddTaskWindow(ctk.CTkToplevel):
             messagebox.showerror("Campos Incompletos", "Por favor, ingresa el título y selecciona una fecha límite.")
             return
 
-        add_task(title, desc, due_date)
+        try:
+            estimated_hours = float(self.hours_var.get())
+        except (ValueError, AttributeError):
+            estimated_hours = 0
+
+        add_task(title, desc, due_date, estimated_hours)
         self.refresh_callback()
         self.destroy()
 
@@ -373,7 +393,29 @@ class TaskItemFrame(ctk.CTkFrame):
 
         date_str = f"📅 Fecha Límite: {task['due_date']} ({diff_days} días)" if task['status'] == 'pending' else f"📅 Fecha: {task['due_date']}"
         self.date_label = ctk.CTkLabel(self, text=date_str, font=ctk.CTkFont(size=12), text_color=TEXT_MUTED)
-        self.date_label.grid(row=1, column=0, padx=15, pady=(0, 5), sticky="w")
+        self.date_label.grid(row=1, column=0, padx=15, pady=(0, 3), sticky="w")
+        
+        # Hours Progress
+        estimated = task.get('estimated_hours') or 0
+        if estimated and estimated > 0:
+            scheduled = get_sessions_by_task(task['id'])
+            ratio = min(scheduled / estimated, 1.0)
+            bar_color = ACCENT_BLUE if ratio < 1.0 else ACCENT_GREEN
+            
+            prog_frame = ctk.CTkFrame(self, fg_color="transparent")
+            prog_frame.grid(row=2, column=0, padx=15, pady=(0, 5), sticky="ew")
+            prog_frame.grid_columnconfigure(1, weight=1)
+            
+            ctk.CTkLabel(prog_frame, text=f"⏱️ {scheduled:.1f}/{estimated:.0f}h",
+                          font=ctk.CTkFont(size=11, weight="bold"),
+                          text_color=bar_color).grid(row=0, column=0, padx=(0, 8))
+            
+            bar_bg = ctk.CTkFrame(prog_frame, height=8, fg_color=SURFACE_COLOR, corner_radius=4)
+            bar_bg.grid(row=0, column=1, sticky="ew")
+            bar_bg.grid_propagate(False)
+            bar_bg.bind("<Configure>", lambda e, r=ratio, c=bar_color, bg=bar_bg:
+                ctk.CTkFrame(bg, height=8, width=int(e.width * r),
+                             fg_color=c, corner_radius=4).place(x=0, y=0))
         
         if task['description']:
             self.desc_label = ctk.CTkLabel(self, text=task['description'], anchor="w", text_color=TEXT_MUTED, font=ctk.CTkFont(size=13), justify="left")

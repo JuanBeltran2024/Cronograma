@@ -45,16 +45,20 @@ def init_db():
         cursor.execute('ALTER TABLE tasks ADD COLUMN importance INTEGER DEFAULT 1')
     except sqlite3.OperationalError:
         pass
+    try:
+        cursor.execute('ALTER TABLE tasks ADD COLUMN estimated_hours REAL DEFAULT 0')
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     conn.close()
 
-def add_task(title, description, due_date):
+def add_task(title, description, due_date, estimated_hours=0):
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO tasks (title, description, due_date, status)
-        VALUES (?, ?, ?, 'pending')
-    ''', (title, description, due_date))
+        INSERT INTO tasks (title, description, due_date, status, estimated_hours)
+        VALUES (?, ?, ?, 'pending', ?)
+    ''', (title, description, due_date, estimated_hours))
     conn.commit()
     conn.close()
 
@@ -135,6 +139,23 @@ def delete_session(session_id):
     cursor.execute('DELETE FROM sessions WHERE id = ?', (session_id,))
     conn.commit()
     conn.close()
+
+def get_sessions_by_task(task_id):
+    """Returns total scheduled hours for a given task."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute('SELECT start_time, end_time FROM sessions WHERE task_id = ?', (task_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    total = 0.0
+    for start, end in rows:
+        try:
+            sh, sm = map(int, start.split(':'))
+            eh, em = map(int, end.split(':'))
+            total += (eh * 60 + em - sh * 60 - sm) / 60.0
+        except Exception:
+            pass
+    return total
 
 def add_class(name, day_of_week, start_time, end_time):
     conn = get_connection()
