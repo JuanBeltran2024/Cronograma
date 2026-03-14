@@ -10,6 +10,9 @@ from database import init_db, add_task, get_all_tasks, get_tasks_by_date_range, 
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
+# Module-level cache for GIF frames (avoids reloading per task card)
+_URGENT_GIF_CACHE = {}
+
 # === STITCH THEME PALETTE ===
 BG_COLOR      = "#1a2a3a"  # Deep ocean navy
 SURFACE_COLOR = "#243650"  # Stitch blue-dark
@@ -391,6 +394,46 @@ class TaskItemFrame(ctk.CTkFrame):
                                         text_color=p_color)
         self.prio_label.grid(row=0, column=1, sticky="e")
 
+        # Show animated Stitch for urgent tasks
+        if task['status'] == 'pending' and priority == "⚠️ ¡Urgente!":
+            try:
+                import os as _os
+                global _URGENT_GIF_CACHE
+                if 'frames' not in _URGENT_GIF_CACHE:
+                    _gif_path = _os.path.join(_os.path.dirname(__file__), "stitch_anim_atra.gif")
+                    _pil_gif = Image.open(_gif_path)
+                    _frames, _delays = [], []
+                    _bg_rgb = (36, 54, 80)  # SURFACE_COLOR #243650
+                    try:
+                        while True:
+                            _rgba = _pil_gif.copy().convert("RGBA").resize((38, 38), Image.LANCZOS)
+                            _canvas = Image.new("RGBA", (38, 38), _bg_rgb + (255,))
+                            _canvas.paste(_rgba, mask=_rgba.split()[3])
+                            _composed = _canvas.convert("RGB")
+                            _frames.append(ctk.CTkImage(light_image=_composed, dark_image=_composed, size=(38, 38)))
+                            _delays.append(max(_pil_gif.info.get("duration", 80), 30))
+                            _pil_gif.seek(_pil_gif.tell() + 1)
+                    except EOFError:
+                        pass
+                    _URGENT_GIF_CACHE['frames'] = _frames
+                    _URGENT_GIF_CACHE['delays'] = _delays
+
+                self._urg_frames = _URGENT_GIF_CACHE['frames']
+                self._urg_delays = _URGENT_GIF_CACHE['delays']
+                self._urg_idx = 0
+                self._urg_lbl = ctk.CTkLabel(self.header_frame, image=self._urg_frames[0], text="", fg_color="transparent")
+                self._urg_lbl.grid(row=0, column=2, padx=(6, 0))
+
+                def _play_urg(lbl=self._urg_lbl):
+                    if not self.winfo_exists():
+                        return
+                    self._urg_idx = (self._urg_idx + 1) % len(self._urg_frames)
+                    lbl.configure(image=self._urg_frames[self._urg_idx])
+                    self.winfo_toplevel().after(self._urg_delays[self._urg_idx], _play_urg)
+                self.winfo_toplevel().after(self._urg_delays[0], _play_urg)
+            except Exception:
+                pass
+
         date_str = f"📅 Fecha Límite: {task['due_date']} ({diff_days} días)" if task['status'] == 'pending' else f"📅 Fecha: {task['due_date']}"
         self.date_label = ctk.CTkLabel(self, text=date_str, font=ctk.CTkFont(size=12), text_color=TEXT_MUTED)
         self.date_label.grid(row=1, column=0, padx=15, pady=(0, 3), sticky="w")
@@ -440,18 +483,91 @@ class TaskItemFrame(ctk.CTkFrame):
 
     def mark_completed(self):
         update_task_status(self.task['id'], 'completed')
-        self.refresh_callback()
+        CelebrationPopup(self.winfo_toplevel(), self.refresh_callback)
 
     def delete_this_task(self):
         if messagebox.askyesno("Confirmar Acción", "¿Estás seguro de que deseas eliminar permanentemente esta tarea?"):
             delete_task(self.task['id'])
             self.refresh_callback()
 
+class CelebrationPopup(ctk.CTkToplevel):
+    """Popup que muestra el GIF de Stitch al completar una tarea."""
+    def __init__(self, parent, on_close_callback):
+        super().__init__(parent)
+        self.on_close_callback = on_close_callback
+        self.overrideredirect(True)          # Sin barra de título
+        self.attributes("-topmost", True)
+
+        # Color clave que se vuelve transparente en Windows
+        _KEY = "#010101"
+        self.configure(fg_color=_KEY)
+        try:
+            self.wm_attributes("-transparentcolor", _KEY)
+        except Exception:
+            pass
+
+        # Centrar sobre la ventana padre
+        parent.update_idletasks()
+        pw, ph = parent.winfo_width(), parent.winfo_height()
+        px, py = parent.winfo_rootx(), parent.winfo_rooty()
+        w, h = 200, 200
+        x = px + (pw - w) // 2
+        y = py + (ph - h) // 2
+        self.geometry(f"{w}x{h}+{x}+{y}")
+
+        ctk.CTkLabel(self, text="¡Completada! 🎉",
+                     font=ctk.CTkFont(size=14, weight="bold"),
+                     text_color=ACCENT_SOFT, fg_color="transparent").pack(pady=(6, 2))
+
+        # Cargar GIF — componer sobre color clave para transparencia real
+        _KEY_RGB = (1, 1, 1)
+        self._frames, self._delays, self._idx = [], [], 0
+        try:
+            import os
+            _path = os.path.join(os.path.dirname(__file__), "stitch_anim.gif")
+            _gif = Image.open(_path)
+            _bg_rgb = (26, 42, 58)  # BG_COLOR #1a2a3a
+            try:
+                while True:
+                    _rgba = _gif.copy().convert("RGBA").resize((160, 160), Image.LANCZOS)
+                    _canvas = Image.new("RGBA", (160, 160), _KEY_RGB + (255,))
+                    _canvas.paste(_rgba, mask=_rgba.split()[3])
+                    _composed = _canvas.convert("RGB")
+                    self._frames.append(ctk.CTkImage(light_image=_composed, dark_image=_composed, size=(160, 160)))
+                    self._delays.append(max(_gif.info.get("duration", 80), 30))
+                    _gif.seek(_gif.tell() + 1)
+            except EOFError:
+                pass
+        except Exception:
+            pass
+
+        if self._frames:
+            self._lbl = ctk.CTkLabel(self, image=self._frames[0], text="", fg_color="transparent")
+            self._lbl.pack()
+            self._play()
+        else:
+            ctk.CTkLabel(self, text="🐾", font=ctk.CTkFont(size=60)).pack(pady=20)
+
+        # Auto-cerrar y refrescar después de 2.5 s
+        self.after(2500, self._finish)
+
+    def _play(self):
+        if not self.winfo_exists():
+            return
+        self._idx = (self._idx + 1) % len(self._frames)
+        self._lbl.configure(image=self._frames[self._idx])
+        self.after(self._delays[self._idx], self._play)
+
+    def _finish(self):
+        self.destroy()
+        self.on_close_callback()
+
+
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("MyUniTasks 🐾 - Organizador")
+        self.title("LittleStep2.6 🐾 - Organizador")
         self.geometry("1100x750")
         self.configure(fg_color=BG_COLOR)
 
@@ -486,18 +602,41 @@ class App(ctk.CTk):
         logo_frame = ctk.CTkFrame(self.sidebar_frame, fg_color=BG_COLOR, corner_radius=16)
         logo_frame.grid(row=0, column=0, padx=15, pady=(25, 15), sticky="ew")
         
-        # Try loading the Stitch image
+        # Try loading the animated Stitch GIF
         try:
             import os
-            img_path = os.path.join(os.path.dirname(__file__), "stitch_logo.png")
-            pil_img = Image.open(img_path).resize((140, 100), Image.LANCZOS)
-            ctk_img = ctk.CTkImage(light_image=pil_img, dark_image=pil_img, size=(140, 100))
-            img_label = ctk.CTkLabel(logo_frame, image=ctk_img, text="", fg_color="transparent")
+            gif_path = os.path.join(os.path.dirname(__file__), "stitch_anim_princ.gif")
+            pil_gif = Image.open(gif_path)
+
+            # Extract all frames from the GIF
+            self._gif_frames = []
+            self._gif_delays = []
+            try:
+                while True:
+                    frame = pil_gif.copy().convert("RGBA").resize((140, 140), Image.LANCZOS)
+                    ctk_frame = ctk.CTkImage(light_image=frame, dark_image=frame, size=(140, 140))
+                    self._gif_frames.append(ctk_frame)
+                    delay = pil_gif.info.get("duration", 80)
+                    self._gif_delays.append(max(delay, 30))
+                    pil_gif.seek(pil_gif.tell() + 1)
+            except EOFError:
+                pass
+
+            img_label = ctk.CTkLabel(logo_frame, image=self._gif_frames[0], text="", fg_color="transparent")
             img_label.pack(pady=(10, 0))
+
+            # Animate GIF frames
+            self._gif_index = 0
+            def _play_gif():
+                self._gif_index = (self._gif_index + 1) % len(self._gif_frames)
+                img_label.configure(image=self._gif_frames[self._gif_index])
+                self.after(self._gif_delays[self._gif_index], _play_gif)
+            self.after(self._gif_delays[0], _play_gif)
+
         except Exception:
             ctk.CTkLabel(logo_frame, text="🐾", font=ctk.CTkFont(size=38)).pack(pady=(12, 0))
         
-        ctk.CTkLabel(logo_frame, text="MyUniTasks", font=ctk.CTkFont(size=18, weight="bold"), text_color=ACCENT_SOFT).pack(pady=(2, 4))
+        ctk.CTkLabel(logo_frame, text="LittleStep2.6", font=ctk.CTkFont(size=18, weight="bold"), text_color=ACCENT_SOFT).pack(pady=(2, 4))
         ctk.CTkLabel(logo_frame, text="Ohana significa familia", font=ctk.CTkFont(size=10, slant="italic"), text_color=TEXT_MUTED).pack(pady=(0, 12))
 
         btn_font = ctk.CTkFont(size=14, weight="bold")
